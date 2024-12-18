@@ -1,220 +1,188 @@
+import { validate } from '../../utils/helpers.js';
+
 class PatternDetection {
     constructor() {
         this.patterns = new Map();
-        this.callbacks = new Set();
+        this.subscribers = new Set();
     }
 
-    // Candlestick Pattern Detection
-    analyzeCandlestick(candles) {
+    async initialize() {
+        // Initialize pattern detection
+        return true;
+    }
+
+    detectCandlestickPatterns(data) {
         const patterns = [];
         
-        // Ensure we have enough candles for pattern detection
-        if (candles.length < 5) return patterns;
-
-        // Analyze each candle for patterns
-        for (let i = 4; i < candles.length; i++) {
-            const currentCandles = candles.slice(i - 4, i + 1);
-            
-            // Check for various patterns
-            const detectedPatterns = [
-                this.checkDoji(currentCandles),
-                this.checkHammer(currentCandles),
-                this.checkEngulfing(currentCandles),
-                this.checkMorningStar(currentCandles),
-                this.checkEveningStar(currentCandles)
-            ].filter(pattern => pattern !== null);
-
-            patterns.push(...detectedPatterns);
+        // Ensure we have enough data
+        if (data.length < 5) return patterns;
+        
+        // Check last 3 candles for patterns
+        const last3 = data.slice(-3);
+        
+        // Doji
+        if (this.isDoji(last3[2])) {
+            patterns.push({
+                type: 'doji',
+                position: 'current',
+                time: last3[2].time,
+                significance: this.calculateSignificance(last3)
+            });
         }
-
+        
+        // Hammer
+        if (this.isHammer(last3[2])) {
+            patterns.push({
+                type: 'hammer',
+                position: 'current',
+                time: last3[2].time,
+                significance: this.calculateSignificance(last3)
+            });
+        }
+        
+        // Engulfing
+        if (this.isEngulfing(last3[1], last3[2])) {
+            patterns.push({
+                type: 'engulfing',
+                position: 'current',
+                time: last3[2].time,
+                significance: this.calculateSignificance(last3)
+            });
+        }
+        
+        // Morning/Evening Star
+        if (this.isMorningStar(last3) || this.isEveningStar(last3)) {
+            patterns.push({
+                type: last3[2].close > last3[0].open ? 'morning_star' : 'evening_star',
+                position: 'current',
+                time: last3[2].time,
+                significance: this.calculateSignificance(last3)
+            });
+        }
+        
         return patterns;
     }
 
-    // Doji Pattern
-    checkDoji(candles) {
-        const current = candles[candles.length - 1];
-        const bodySize = Math.abs(current.open - current.close);
-        const wickSize = current.high - current.low;
-        
-        // Check if the body is very small compared to the total range
-        if (bodySize <= wickSize * 0.1) {
-            return {
-                type: 'doji',
-                time: current.time,
-                price: current.close,
-                significance: 'neutral',
-                description: 'Doji pattern indicates market indecision'
-            };
-        }
-        return null;
+    isDoji(candle) {
+        const bodySize = Math.abs(candle.open - candle.close);
+        const totalSize = candle.high - candle.low;
+        return bodySize / totalSize < 0.1; // Body is less than 10% of total size
     }
 
-    // Hammer Pattern
-    checkHammer(candles) {
-        const current = candles[candles.length - 1];
-        const body = Math.abs(current.open - current.close);
-        const upperWick = current.high - Math.max(current.open, current.close);
-        const lowerWick = Math.min(current.open, current.close) - current.low;
+    isHammer(candle) {
+        const bodySize = Math.abs(candle.open - candle.close);
+        const upperWick = candle.high - Math.max(candle.open, candle.close);
+        const lowerWick = Math.min(candle.open, candle.close) - candle.low;
         
-        // Check for hammer properties
-        if (lowerWick > body * 2 && upperWick < body * 0.5) {
-            return {
-                type: 'hammer',
-                time: current.time,
-                price: current.close,
-                significance: 'bullish',
-                description: 'Hammer pattern indicates potential trend reversal'
-            };
-        }
-        return null;
+        // Lower wick should be at least 2x the body
+        return lowerWick > bodySize * 2 && upperWick < bodySize;
     }
 
-    // Engulfing Pattern
-    checkEngulfing(candles) {
-        const previous = candles[candles.length - 2];
-        const current = candles[candles.length - 1];
+    isEngulfing(prev, current) {
+        const prevBody = Math.abs(prev.open - prev.close);
+        const currentBody = Math.abs(current.open - current.close);
         
-        // Bullish Engulfing
-        if (previous.close < previous.open && // Previous red candle
-            current.close > current.open && // Current green candle
-            current.open < previous.close && // Current opens below previous close
-            current.close > previous.open) { // Current closes above previous open
-            return {
-                type: 'bullishEngulfing',
-                time: current.time,
-                price: current.close,
-                significance: 'bullish',
-                description: 'Bullish engulfing pattern suggests trend reversal'
-            };
-        }
+        const isBullish = current.close > current.open && prev.close < prev.open;
+        const isBearish = current.close < current.open && prev.close > prev.open;
         
-        // Bearish Engulfing
-        if (previous.close > previous.open && // Previous green candle
-            current.close < current.open && // Current red candle
-            current.open > previous.close && // Current opens above previous close
-            current.close < previous.open) { // Current closes below previous open
-            return {
-                type: 'bearishEngulfing',
-                time: current.time,
-                price: current.close,
-                significance: 'bearish',
-                description: 'Bearish engulfing pattern suggests trend reversal'
-            };
-        }
-        
-        return null;
+        return (isBullish || isBearish) && currentBody > prevBody * 1.5;
     }
 
-    // Morning Star Pattern
-    checkMorningStar(candles) {
-        if (candles.length < 3) return null;
+    isMorningStar(candles) {
+        const [first, second, third] = candles;
         
-        const [first, second, third] = candles.slice(-3);
+        // First candle should be bearish
+        const firstBearish = first.close < first.open;
         
-        if (first.close < first.open && // First day is bearish
-            Math.abs(second.open - second.close) < Math.abs(first.open - first.close) * 0.3 && // Second day has small body
-            third.close > third.open && // Third day is bullish
-            third.close > (first.open + first.close) / 2) { // Third day closes above first day midpoint
-            return {
-                type: 'morningStar',
-                time: third.time,
-                price: third.close,
-                significance: 'bullish',
-                description: 'Morning star pattern indicates potential upward reversal'
-            };
-        }
-        return null;
-    }
-
-    // Evening Star Pattern
-    checkEveningStar(candles) {
-        if (candles.length < 3) return null;
+        // Second candle should be small
+        const secondSmall = Math.abs(second.open - second.close) < 
+                          Math.abs(first.open - first.close) * 0.3;
         
-        const [first, second, third] = candles.slice(-3);
+        // Third candle should be bullish
+        const thirdBullish = third.close > third.open;
         
-        if (first.close > first.open && // First day is bullish
-            Math.abs(second.open - second.close) < Math.abs(first.open - first.close) * 0.3 && // Second day has small body
-            third.close < third.open && // Third day is bearish
-            third.close < (first.open + first.close) / 2) { // Third day closes below first day midpoint
-            return {
-                type: 'eveningStar',
-                time: third.time,
-                price: third.close,
-                significance: 'bearish',
-                description: 'Evening star pattern indicates potential downward reversal'
-            };
-        }
-        return null;
+        // Gap down between first and second
+        const gapDown = second.high < first.low;
+        
+        // Gap up between second and third
+        const gapUp = third.low > second.high;
+        
+        return firstBearish && secondSmall && thirdBullish && gapDown && gapUp;
     }
 
-    // Support and Resistance Levels
-    findSupportResistance(candles, periods = 20) {
-        const levels = {
-            support: [],
-            resistance: []
-        };
-
-        for (let i = periods; i < candles.length - periods; i++) {
-            const currentCandle = candles[i];
-            const leftCandles = candles.slice(i - periods, i);
-            const rightCandles = candles.slice(i + 1, i + periods + 1);
-
-            // Check for support
-            if (this.isLowestPoint(currentCandle.low, leftCandles, rightCandles)) {
-                levels.support.push({
-                    price: currentCandle.low,
-                    time: currentCandle.time,
-                    strength: this.calculateLevelStrength(currentCandle.low, candles)
-                });
-            }
-
-            // Check for resistance
-            if (this.isHighestPoint(currentCandle.high, leftCandles, rightCandles)) {
-                levels.resistance.push({
-                    price: currentCandle.high,
-                    time: currentCandle.time,
-                    strength: this.calculateLevelStrength(currentCandle.high, candles)
-                });
-            }
-        }
-
-        return levels;
+    isEveningStar(candles) {
+        const [first, second, third] = candles;
+        
+        // First candle should be bullish
+        const firstBullish = first.close > first.open;
+        
+        // Second candle should be small
+        const secondSmall = Math.abs(second.open - second.close) < 
+                          Math.abs(first.open - first.close) * 0.3;
+        
+        // Third candle should be bearish
+        const thirdBearish = third.close < third.open;
+        
+        // Gap up between first and second
+        const gapUp = second.low > first.high;
+        
+        // Gap down between second and third
+        const gapDown = third.high < second.low;
+        
+        return firstBullish && secondSmall && thirdBearish && gapUp && gapDown;
     }
 
-    isLowestPoint(price, leftCandles, rightCandles) {
-        return leftCandles.every(c => c.low > price) && 
-               rightCandles.every(c => c.low > price);
+    calculateSignificance(candles) {
+        // Calculate pattern significance based on:
+        // 1. Volume
+        // 2. Size of candles
+        // 3. Previous trend
+        
+        let significance = 0;
+        
+        // Volume analysis
+        const avgVolume = candles.reduce((sum, candle) => sum + (candle.volume || 0), 0) / candles.length;
+        const lastVolume = candles[candles.length - 1].volume || 0;
+        if (lastVolume > avgVolume * 1.5) significance += 0.3;
+        
+        // Candle size analysis
+        const lastCandle = candles[candles.length - 1];
+        const bodySize = Math.abs(lastCandle.open - lastCandle.close);
+        const totalSize = lastCandle.high - lastCandle.low;
+        if (bodySize / totalSize > 0.7) significance += 0.3;
+        
+        // Trend analysis
+        const trend = this.calculateTrend(candles);
+        if (Math.abs(trend) > 0.7) significance += 0.4;
+        
+        return Math.min(significance, 1);
     }
 
-    isHighestPoint(price, leftCandles, rightCandles) {
-        return leftCandles.every(c => c.high < price) && 
-               rightCandles.every(c => c.high < price);
+    calculateTrend(candles) {
+        const closes = candles.map(c => c.close);
+        const firstClose = closes[0];
+        const lastClose = closes[closes.length - 1];
+        return (lastClose - firstClose) / firstClose;
     }
 
-    calculateLevelStrength(price, candles, tolerance = 0.001) {
-        let touches = 0;
-        for (const candle of candles) {
-            if (Math.abs(candle.low - price) <= price * tolerance || 
-                Math.abs(candle.high - price) <= price * tolerance) {
-                touches++;
-            }
-        }
-        return touches;
-    }
-
-    // Subscribe to pattern notifications
     subscribe(callback) {
-        this.callbacks.add(callback);
+        if (typeof callback === 'function') {
+            this.subscribers.add(callback);
+        }
     }
 
-    // Unsubscribe from pattern notifications
     unsubscribe(callback) {
-        this.callbacks.delete(callback);
+        this.subscribers.delete(callback);
     }
 
-    // Notify subscribers of new patterns
-    notifySubscribers(pattern) {
-        this.callbacks.forEach(callback => callback(pattern));
+    notifySubscribers(patterns) {
+        this.subscribers.forEach(subscriber => {
+            try {
+                subscriber(patterns);
+            } catch (error) {
+                console.error('Error in pattern detection subscriber:', error);
+            }
+        });
     }
 }
 

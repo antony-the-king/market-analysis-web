@@ -1,6 +1,8 @@
 # Dependencies
-node_modules/
-package-lock.json
+/node_modules
+/venv
+__pycache__/
+*.py[cod]
 
 # Environment files
 .env
@@ -10,14 +12,14 @@ package-lock.json
 # IDE files
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
+*.swp
+*.swo
+
+# Build files
+/dist
+/build
+*.log
 
 # OS files
 .DS_Store
 Thumbs.db
-
-# Build files
-dist/
-build/
-*.log

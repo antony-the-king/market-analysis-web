@@ -1,234 +1,203 @@
-import { config } from '../config.js';
-
-// Time and Date Utilities
-export const timestampToDate = (timestamp) => {
-    return new Date(timestamp * 1000);
-};
-
-export const formatTimeframe = (timestamp, timeframe) => {
-    const date = timestampToDate(timestamp);
-    switch (timeframe) {
-        case '1m':
-        case '5m':
-        case '15m':
-            return date.toLocaleTimeString();
-        case '1h':
-            return `${date.getHours()}:00`;
-        case '1d':
-            return date.toLocaleDateString();
-        default:
-            return date.toLocaleString();
-    }
-};
-
-// Number Formatting
-export const formatNumber = (number, decimals = 2) => {
-    return Number(number).toFixed(decimals);
-};
-
-export const formatPercentage = (number) => {
-    return `${(number * 100).toFixed(2)}%`;
-};
-
-export const formatVolume = (volume) => {
-    if (volume >= 1_000_000) {
-        return `${(volume / 1_000_000).toFixed(2)}M`;
-    }
-    if (volume >= 1_000) {
-        return `${(volume / 1_000).toFixed(2)}K`;
-    }
-    return volume.toString();
-};
-
-// Candlestick Analysis
-export const getCandleColor = (candle) => {
-    return candle.close >= candle.open ? 
-        config.chart.candleColors.up : 
-        config.chart.candleColors.down;
-};
-
-export const getCandleBody = (candle) => {
-    return Math.abs(candle.close - candle.open);
-};
-
-export const getCandleWick = (candle) => {
-    return candle.high - candle.low;
-};
-
-export const isBullish = (candle) => {
-    return candle.close > candle.open;
-};
-
-export const isBearish = (candle) => {
-    return candle.close < candle.open;
-};
-
-export const isDoji = (candle) => {
-    const bodySize = Math.abs(candle.close - candle.open);
-    const wickSize = candle.high - candle.low;
-    return bodySize <= (wickSize * 0.1);
-};
-
-// Technical Analysis
-export const calculateChange = (current, previous) => {
-    return {
-        absolute: current - previous,
-        percentage: ((current - previous) / previous) * 100
-    };
-};
-
-export const calculateAverage = (data, key = null) => {
-    if (data.length === 0) return 0;
-    const sum = data.reduce((acc, val) => acc + (key ? val[key] : val), 0);
-    return sum / data.length;
-};
-
-export const calculateStandardDeviation = (data, mean, key = null) => {
-    if (data.length === 0) return 0;
-    const squaredDiffs = data.map(val => {
-        const value = key ? val[key] : val;
-        return Math.pow(value - mean, 2);
-    });
-    return Math.sqrt(calculateAverage(squaredDiffs));
-};
-
-// Pattern Detection Helpers
-export const findPivots = (data, lookback = 5) => {
-    const pivots = {
-        highs: [],
-        lows: []
-    };
-
-    for (let i = lookback; i < data.length - lookback; i++) {
-        const current = data[i];
-        const leftBars = data.slice(i - lookback, i);
-        const rightBars = data.slice(i + 1, i + lookback + 1);
-
-        // Check for pivot high
-        if (leftBars.every(bar => bar.high <= current.high) &&
-            rightBars.every(bar => bar.high <= current.high)) {
-            pivots.highs.push({
-                price: current.high,
-                time: current.time,
-                index: i
-            });
-        }
-
-        // Check for pivot low
-        if (leftBars.every(bar => bar.low >= current.low) &&
-            rightBars.every(bar => bar.low >= current.low)) {
-            pivots.lows.push({
-                price: current.low,
-                time: current.time,
-                index: i
-            });
-        }
-    }
-
-    return pivots;
-};
-
-// DOM Utilities
-export const createElement = (tag, className = '', attributes = {}) => {
-    const element = document.createElement(tag);
-    if (className) {
-        element.className = className;
-    }
-    Object.entries(attributes).forEach(([key, value]) => {
-        element.setAttribute(key, value);
-    });
-    return element;
-};
-
-export const createTooltip = (content, options = {}) => {
-    const tooltip = createElement('div', 'tooltip');
-    if (options.className) {
-        tooltip.classList.add(options.className);
-    }
-    tooltip.innerHTML = content;
-    return tooltip;
-};
-
-// Error Handling
+// Custom error class for Market Analysis Tool
 export class MarketAnalysisError extends Error {
     constructor(message, code, details = {}) {
         super(message);
         this.name = 'MarketAnalysisError';
         this.code = code;
         this.details = details;
+        this.timestamp = new Date();
     }
 }
 
-export const handleError = (error) => {
-    console.error('Market Analysis Error:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        stack: error.stack
-    });
+// Time formatting utilities
+export const formatTime = {
+    toUTC: (timestamp) => {
+        return new Date(timestamp * 1000).toUTCString();
+    },
     
-    // You can implement custom error handling logic here
-    // For example, showing a notification to the user
+    toLocal: (timestamp) => {
+        return new Date(timestamp * 1000).toLocaleString();
+    },
+    
+    toISO: (timestamp) => {
+        return new Date(timestamp * 1000).toISOString();
+    }
 };
 
-// Performance Optimization
-export const debounce = (func, wait) => {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
+// Price formatting utilities
+export const formatPrice = {
+    standard: (price) => {
+        return parseFloat(price).toFixed(5);
+    },
+    
+    withCommas: (price) => {
+        return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    },
+    
+    toCurrency: (price, currency = 'USD') => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency
+        }).format(price);
+    }
 };
 
-export const throttle = (func, limit) => {
-    let inThrottle;
-    return function executedFunction(...args) {
-        if (!inThrottle) {
-            func(...args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
+// Calculation utilities
+export const calculate = {
+    percentageChange: (oldValue, newValue) => {
+        return ((newValue - oldValue) / oldValue) * 100;
+    },
+    
+    movingAverage: (data, period) => {
+        const result = [];
+        for (let i = period - 1; i < data.length; i++) {
+            const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+            result.push(sum / period);
         }
-    };
-};
-
-// Data Validation
-export const validateCandle = (candle) => {
-    const required = ['time', 'open', 'high', 'low', 'close'];
-    const missing = required.filter(prop => !(prop in candle));
+        return result;
+    },
     
-    if (missing.length > 0) {
-        throw new MarketAnalysisError(
-            'Invalid candle data',
-            'INVALID_CANDLE',
-            { missing }
-        );
+    standardDeviation: (data) => {
+        const mean = data.reduce((a, b) => a + b, 0) / data.length;
+        const squareDiffs = data.map(value => Math.pow(value - mean, 2));
+        const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / squareDiffs.length;
+        return Math.sqrt(avgSquareDiff);
     }
-
-    if (candle.high < candle.low ||
-        candle.open < candle.low ||
-        candle.close < candle.low ||
-        candle.open > candle.high ||
-        candle.close > candle.high) {
-        throw new MarketAnalysisError(
-            'Invalid candle values',
-            'INVALID_CANDLE_VALUES',
-            { candle }
-        );
-    }
-
-    return true;
 };
 
-// Export commonly used constants
-export const constants = {
-    MILLISECONDS_IN_DAY: 86400000,
-    MILLISECONDS_IN_HOUR: 3600000,
-    MILLISECONDS_IN_MINUTE: 60000,
-    PRICE_DECIMALS: 5,
-    VOLUME_DECIMALS: 2,
-    PERCENTAGE_DECIMALS: 2
+// DOM utilities
+export const dom = {
+    createElement: (tag, attributes = {}, children = []) => {
+        const element = document.createElement(tag);
+        Object.entries(attributes).forEach(([key, value]) => {
+            if (key === 'className') {
+                element.className = value;
+            } else if (key === 'style' && typeof value === 'object') {
+                Object.assign(element.style, value);
+            } else {
+                element.setAttribute(key, value);
+            }
+        });
+        children.forEach(child => {
+            if (typeof child === 'string') {
+                element.appendChild(document.createTextNode(child));
+            } else {
+                element.appendChild(child);
+            }
+        });
+        return element;
+    },
+    
+    removeElement: (element) => {
+        if (element && element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+    },
+    
+    addStyles: (styles) => {
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = styles;
+        document.head.appendChild(styleSheet);
+        return styleSheet;
+    }
+};
+
+// Event handling utilities
+export const events = {
+    debounce: (func, wait) => {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+    
+    throttle: (func, limit) => {
+        let inThrottle;
+        return function executedFunction(...args) {
+            if (!inThrottle) {
+                func(...args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    }
+};
+
+// Data validation utilities
+export const validate = {
+    isNumber: (value) => {
+        return typeof value === 'number' && !isNaN(value) && isFinite(value);
+    },
+    
+    isPositive: (value) => {
+        return validate.isNumber(value) && value > 0;
+    },
+    
+    isInRange: (value, min, max) => {
+        return validate.isNumber(value) && value >= min && value <= max;
+    },
+    
+    isValidTimestamp: (timestamp) => {
+        return validate.isNumber(timestamp) && timestamp > 0;
+    }
+};
+
+// Local storage utilities
+export const storage = {
+    set: (key, value) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+            return true;
+        } catch (error) {
+            console.error('Error saving to localStorage:', error);
+            return false;
+        }
+    },
+    
+    get: (key, defaultValue = null) => {
+        try {
+            const item = localStorage.getItem(key);
+            return item ? JSON.parse(item) : defaultValue;
+        } catch (error) {
+            console.error('Error reading from localStorage:', error);
+            return defaultValue;
+        }
+    },
+    
+    remove: (key) => {
+        try {
+            localStorage.removeItem(key);
+            return true;
+        } catch (error) {
+            console.error('Error removing from localStorage:', error);
+            return false;
+        }
+    }
+};
+
+// Array utilities
+export const arrays = {
+    last: (arr) => arr[arr.length - 1],
+    
+    groupBy: (arr, key) => {
+        return arr.reduce((result, item) => {
+            (result[item[key]] = result[item[key]] || []).push(item);
+            return result;
+        }, {});
+    },
+    
+    unique: (arr) => [...new Set(arr)],
+    
+    chunk: (arr, size) => {
+        const chunks = [];
+        for (let i = 0; i < arr.length; i += size) {
+            chunks.push(arr.slice(i, i + size));
+        }
+        return chunks;
+    }
 };

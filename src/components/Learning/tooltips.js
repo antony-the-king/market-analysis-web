@@ -1,215 +1,312 @@
-class LearningMode {
+import { dom, events } from '../../utils/helpers.js';
+import settingsManager from '../../services/settings.js';
+
+class TooltipManager {
     constructor() {
-        this.enabled = false;
-        this.tooltipContainer = null;
-        this.patterns = new Map();
-        this.indicators = new Map();
-        this.strategies = new Map();
-        this.initializeContent();
+        this.tooltips = new Map();
+        this.activeTooltips = new Set();
+        this.learningMode = false;
+        this.mousePosition = { x: 0, y: 0 };
+        
+        // Debounced update function for performance
+        this.updateTooltipPositions = events.debounce(this._updateTooltipPositions.bind(this), 16);
     }
 
-    initializeContent() {
-        // Initialize pattern explanations
-        this.patterns.set('doji', {
-            title: 'Doji Pattern',
-            description: 'A doji forms when a security's open and close are virtually equal. The length of both upper and lower shadows can vary, forming different types of doji patterns.',
-            significance: 'Indicates market indecision and potential trend reversal.',
-            example: '🕯️ When the opening and closing prices are nearly equal, forming a cross shape.'
+    async initialize() {
+        // Initialize event listeners
+        this.setupEventListeners();
+        
+        // Load learning mode preference
+        this.learningMode = settingsManager.get('learningMode', false);
+        
+        return true;
+    }
+
+    setupEventListeners() {
+        // Track mouse position
+        document.addEventListener('mousemove', (e) => {
+            this.mousePosition = { x: e.clientX, y: e.clientY };
+            this.updateTooltipPositions();
         });
 
-        this.patterns.set('hammer', {
-            title: 'Hammer Pattern',
-            description: 'A hammer is formed when a security trades significantly lower than its opening, but rallies within the period to close near opening price.',
-            significance: 'Bullish reversal pattern, especially after a downtrend.',
-            example: '🔨 Long lower shadow, small body at the top, little to no upper shadow.'
+        // Handle scroll events
+        window.addEventListener('scroll', () => {
+            this.updateTooltipPositions();
+        }, { passive: true });
+
+        // Handle resize events
+        window.addEventListener('resize', () => {
+            this.updateTooltipPositions();
         });
 
-        this.patterns.set('engulfing', {
-            title: 'Engulfing Pattern',
-            description: 'A two-candle pattern where the second candle completely "engulfs" the body of the first candle.',
-            significance: 'Strong reversal signal, especially at support/resistance levels.',
-            example: '📊 Second candle body completely covers the first candle body.'
-        });
-
-        // Initialize indicator explanations
-        this.indicators.set('sma', {
-            title: 'Simple Moving Average (SMA)',
-            description: 'Calculates the average price over a specified period. Each price point has equal weight.',
-            usage: 'Used to identify trend direction and potential support/resistance levels.',
-            formula: 'SMA = (P1 + P2 + ... + Pn) / n, where P = Price and n = Period'
-        });
-
-        this.indicators.set('rsi', {
-            title: 'Relative Strength Index (RSI)',
-            description: 'Momentum oscillator that measures the speed and magnitude of recent price changes.',
-            usage: 'Identifies overbought (>70) or oversold (<30) conditions.',
-            formula: 'RSI = 100 - [100 / (1 + RS)], where RS = Average Gain / Average Loss'
-        });
-
-        // Initialize strategy explanations
-        this.strategies.set('trendFollowing', {
-            title: 'Trend Following Strategy',
-            description: 'A strategy that aims to capture gains through long-term price movements.',
-            rules: [
-                'Enter trades in the direction of the established trend',
-                'Use moving averages to confirm trend direction',
-                'Wait for pullbacks to enter positions',
-                'Place stops below recent swing lows for long positions'
-            ],
-            riskManagement: 'Suggested position size: 1-2% of trading capital per trade'
+        // Handle ESC key to close tooltips
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideAllTooltips();
+            }
         });
     }
 
-    enable() {
-        this.enabled = true;
-        this.createTooltipContainer();
-        this.attachEventListeners();
+    createTooltip(options) {
+        const {
+            type = 'default',
+            content,
+            position = 'bottom',
+            target,
+            persistent = false,
+            interactive = false,
+            className = '',
+            showArrow = true,
+            offset = { x: 0, y: 8 },
+            onShow,
+            onHide
+        } = options;
+
+        // Create tooltip element
+        const tooltip = dom.createElement('div', {
+            className: `tooltip ${type}-tooltip ${className}`,
+            style: {
+                position: 'absolute',
+                display: 'none',
+                zIndex: '1000'
+            }
+        });
+
+        // Add content
+        if (typeof content === 'string') {
+            tooltip.innerHTML = content;
+        } else if (content instanceof Element) {
+            tooltip.appendChild(content);
+        }
+
+        // Add arrow if needed
+        if (showArrow) {
+            tooltip.setAttribute('data-position', position);
+        }
+
+        // Make interactive if needed
+        if (interactive) {
+            tooltip.style.pointerEvents = 'auto';
+        }
+
+        // Add to document
+        document.body.appendChild(tooltip);
+
+        // Store tooltip data
+        const tooltipData = {
+            element: tooltip,
+            target,
+            position,
+            offset,
+            persistent,
+            interactive,
+            onShow,
+            onHide
+        };
+
+        const id = Math.random().toString(36).substr(2, 9);
+        this.tooltips.set(id, tooltipData);
+
+        return id;
     }
 
-    disable() {
-        this.enabled = false;
-        this.removeTooltipContainer();
-        this.removeEventListeners();
-    }
+    showTooltip(id) {
+        const tooltip = this.tooltips.get(id);
+        if (!tooltip) return;
 
-    createTooltipContainer() {
-        if (!this.tooltipContainer) {
-            this.tooltipContainer = document.createElement('div');
-            this.tooltipContainer.className = 'learning-tooltip';
-            this.tooltipContainer.style.display = 'none';
-            document.body.appendChild(this.tooltipContainer);
+        tooltip.element.style.display = 'block';
+        tooltip.element.classList.add('animate');
+        this.activeTooltips.add(id);
+
+        this.updateTooltipPosition(tooltip);
+
+        if (tooltip.onShow) {
+            tooltip.onShow(tooltip.element);
         }
     }
 
-    removeTooltipContainer() {
-        if (this.tooltipContainer) {
-            document.body.removeChild(this.tooltipContainer);
-            this.tooltipContainer = null;
+    hideTooltip(id) {
+        const tooltip = this.tooltips.get(id);
+        if (!tooltip) return;
+
+        tooltip.element.style.display = 'none';
+        tooltip.element.classList.remove('animate');
+        this.activeTooltips.delete(id);
+
+        if (tooltip.onHide) {
+            tooltip.onHide(tooltip.element);
         }
     }
 
-    attachEventListeners() {
-        document.querySelectorAll('[data-learning]').forEach(element => {
-            element.addEventListener('mouseenter', this.handleMouseEnter.bind(this));
-            element.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+    hideAllTooltips() {
+        this.activeTooltips.forEach(id => {
+            this.hideTooltip(id);
         });
     }
 
-    removeEventListeners() {
-        document.querySelectorAll('[data-learning]').forEach(element => {
-            element.removeEventListener('mouseenter', this.handleMouseEnter.bind(this));
-            element.removeEventListener('mouseleave', this.handleMouseLeave.bind(this));
+    updateTooltipPosition(tooltip) {
+        const { element, target, position, offset } = tooltip;
+        
+        if (!target) {
+            // Position relative to mouse
+            element.style.left = `${this.mousePosition.x + (offset.x || 0)}px`;
+            element.style.top = `${this.mousePosition.y + (offset.y || 0)}px`;
+            return;
+        }
+
+        const targetRect = target.getBoundingClientRect();
+        const tooltipRect = element.getBoundingClientRect();
+
+        let left, top;
+
+        switch (position) {
+            case 'top':
+                left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
+                top = targetRect.top - tooltipRect.height - offset.y;
+                break;
+            case 'bottom':
+                left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
+                top = targetRect.bottom + offset.y;
+                break;
+            case 'left':
+                left = targetRect.left - tooltipRect.width - offset.x;
+                top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
+                break;
+            case 'right':
+                left = targetRect.right + offset.x;
+                top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
+                break;
+        }
+
+        // Ensure tooltip stays within viewport
+        const viewport = {
+            left: 0,
+            top: 0,
+            right: window.innerWidth,
+            bottom: window.innerHeight
+        };
+
+        if (left < viewport.left) left = viewport.left + 5;
+        if (top < viewport.top) top = viewport.top + 5;
+        if (left + tooltipRect.width > viewport.right) {
+            left = viewport.right - tooltipRect.width - 5;
+        }
+        if (top + tooltipRect.height > viewport.bottom) {
+            top = viewport.bottom - tooltipRect.height - 5;
+        }
+
+        element.style.left = `${left}px`;
+        element.style.top = `${top}px`;
+    }
+
+    _updateTooltipPositions() {
+        this.activeTooltips.forEach(id => {
+            const tooltip = this.tooltips.get(id);
+            if (tooltip) {
+                this.updateTooltipPosition(tooltip);
+            }
         });
     }
 
-    handleMouseEnter(event) {
-        if (!this.enabled) return;
+    removeTooltip(id) {
+        const tooltip = this.tooltips.get(id);
+        if (!tooltip) return;
 
-        const element = event.target;
-        const type = element.dataset.learning;
-        const content = this.getContent(type, element.dataset.learningId);
+        if (tooltip.element.parentNode) {
+            tooltip.element.parentNode.removeChild(tooltip.element);
+        }
 
-        if (content) {
-            this.showTooltip(content, element);
+        this.tooltips.delete(id);
+        this.activeTooltips.delete(id);
+    }
+
+    setLearningMode(enabled) {
+        this.learningMode = enabled;
+        settingsManager.set('learningMode', enabled);
+
+        if (!enabled) {
+            // Hide all learning tooltips
+            this.activeTooltips.forEach(id => {
+                const tooltip = this.tooltips.get(id);
+                if (tooltip && tooltip.element.classList.contains('learning-tooltip')) {
+                    this.hideTooltip(id);
+                }
+            });
         }
     }
 
-    handleMouseLeave() {
-        if (this.tooltipContainer) {
-            this.tooltipContainer.style.display = 'none';
-        }
+    createPriceTooltip(price, time) {
+        return this.createTooltip({
+            type: 'price',
+            content: `
+                <div class="price">${price}</div>
+                <div class="time">${time}</div>
+            `,
+            position: 'right',
+            offset: { x: 10, y: 0 }
+        });
     }
 
-    getContent(type, id) {
-        switch (type) {
-            case 'pattern':
-                return this.patterns.get(id);
-            case 'indicator':
-                return this.indicators.get(id);
-            case 'strategy':
-                return this.strategies.get(id);
-            default:
-                return null;
-        }
-    }
-
-    showTooltip(content, element) {
-        if (!this.tooltipContainer || !content) return;
-
-        // Create tooltip content
-        let html = `
-            <div class="tooltip-header">
-                <h3>${content.title}</h3>
+    createIndicatorTooltip(indicator, values) {
+        const content = `
+            <div class="title">${indicator}</div>
+            <div class="values">
+                ${Object.entries(values).map(([label, value]) => `
+                    <div class="label">${label}:</div>
+                    <div class="value">${value}</div>
+                `).join('')}
             </div>
-            <div class="tooltip-body">
         `;
 
-        if (content.description) {
-            html += `<p>${content.description}</p>`;
-        }
-
-        if (content.significance) {
-            html += `<p><strong>Significance:</strong> ${content.significance}</p>`;
-        }
-
-        if (content.example) {
-            html += `<p><strong>Example:</strong> ${content.example}</p>`;
-        }
-
-        if (content.usage) {
-            html += `<p><strong>Usage:</strong> ${content.usage}</p>`;
-        }
-
-        if (content.formula) {
-            html += `<p><strong>Formula:</strong> ${content.formula}</p>`;
-        }
-
-        if (content.rules) {
-            html += `
-                <p><strong>Rules:</strong></p>
-                <ul>
-                    ${content.rules.map(rule => `<li>${rule}</li>`).join('')}
-                </ul>
-            `;
-        }
-
-        html += '</div>';
-        this.tooltipContainer.innerHTML = html;
-
-        // Position tooltip
-        const rect = element.getBoundingClientRect();
-        const tooltipRect = this.tooltipContainer.getBoundingClientRect();
-        
-        let left = rect.right + 10;
-        let top = rect.top;
-
-        // Adjust position if tooltip would go off screen
-        if (left + tooltipRect.width > window.innerWidth) {
-            left = rect.left - tooltipRect.width - 10;
-        }
-
-        if (top + tooltipRect.height > window.innerHeight) {
-            top = window.innerHeight - tooltipRect.height - 10;
-        }
-
-        this.tooltipContainer.style.left = `${left}px`;
-        this.tooltipContainer.style.top = `${top}px`;
-        this.tooltipContainer.style.display = 'block';
+        return this.createTooltip({
+            type: 'indicator',
+            content,
+            position: 'left',
+            offset: { x: -10, y: 0 }
+        });
     }
 
-    addCustomPattern(id, content) {
-        this.patterns.set(id, content);
+    createPatternTooltip(pattern) {
+        const content = `
+            <div class="pattern-name">${pattern.name}</div>
+            <div class="description">${pattern.description}</div>
+            <div class="significance">
+                Significance:
+                <div class="significance-bar">
+                    <div class="significance-value" style="width: ${pattern.significance * 100}%"></div>
+                </div>
+            </div>
+        `;
+
+        return this.createTooltip({
+            type: 'pattern',
+            content,
+            position: 'top',
+            showArrow: true,
+            interactive: true
+        });
     }
 
-    addCustomIndicator(id, content) {
-        this.indicators.set(id, content);
-    }
-
-    addCustomStrategy(id, content) {
-        this.strategies.set(id, content);
+    createLearningTooltip(content, target) {
+        return this.createTooltip({
+            type: 'learning',
+            content: `
+                <div class="title">${content.title}</div>
+                <div class="content">${content.description}</div>
+                <div class="actions">
+                    <button class="button next">Next</button>
+                    <button class="button close">Close</button>
+                </div>
+            `,
+            target,
+            position: 'bottom',
+            persistent: true,
+            interactive: true,
+            showArrow: true
+        });
     }
 }
 
 // Export as singleton
-const learningMode = new LearningMode();
-export default learningMode;
+const tooltipManager = new TooltipManager();
+export default tooltipManager;

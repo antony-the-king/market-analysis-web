@@ -1,208 +1,128 @@
+import { calculate } from '../../utils/helpers.js';
+
 class TechnicalIndicators {
     constructor() {
         this.indicators = new Map();
     }
 
-    // Simple Moving Average (SMA)
-    calculateSMA(data, period = 14) {
-        const sma = [];
-        for (let i = 0; i < data.length; i++) {
-            if (i < period - 1) {
-                sma.push({ time: data[i].time, value: null });
-                continue;
-            }
-
-            let sum = 0;
-            for (let j = 0; j < period; j++) {
-                sum += data[i - j].close;
-            }
-            sma.push({
-                time: data[i].time,
-                value: sum / period
-            });
-        }
-        return sma;
+    async initialize() {
+        // Initialize any required resources
+        return true;
     }
 
-    // Exponential Moving Average (EMA)
-    calculateEMA(data, period = 14) {
-        const ema = [];
-        const multiplier = 2 / (period + 1);
+    calculateSMA(data, period = 14) {
+        const prices = data.map(candle => candle.close);
+        const sma = calculate.movingAverage(prices, period);
+        
+        return data.slice(period - 1).map((candle, index) => ({
+            time: candle.time,
+            value: sma[index]
+        }));
+    }
 
-        let initialSum = 0;
-        for (let i = 0; i < period; i++) {
-            initialSum += data[i].close;
-        }
+    calculateEMA(data, period = 14) {
+        const prices = data.map(candle => candle.close);
+        const multiplier = 2 / (period + 1);
+        const ema = [];
         
         // First EMA is SMA
-        let prevEMA = initialSum / period;
+        let prevEMA = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        ema.push(prevEMA);
         
-        for (let i = 0; i < data.length; i++) {
-            if (i < period - 1) {
-                ema.push({ time: data[i].time, value: null });
-                continue;
-            }
-
-            const currentEMA = (data[i].close - prevEMA) * multiplier + prevEMA;
-            ema.push({
-                time: data[i].time,
-                value: currentEMA
-            });
+        // Calculate EMA for remaining prices
+        for (let i = period; i < prices.length; i++) {
+            const currentEMA = (prices[i] - prevEMA) * multiplier + prevEMA;
+            ema.push(currentEMA);
             prevEMA = currentEMA;
         }
-        return ema;
+        
+        return data.slice(period - 1).map((candle, index) => ({
+            time: candle.time,
+            value: ema[index]
+        }));
     }
 
-    // Relative Strength Index (RSI)
     calculateRSI(data, period = 14) {
-        const rsi = [];
-        const gains = [];
-        const losses = [];
-
-        // Calculate price changes and separate gains/losses
+        const changes = [];
         for (let i = 1; i < data.length; i++) {
-            const change = data[i].close - data[i - 1].close;
-            gains.push(change > 0 ? change : 0);
-            losses.push(change < 0 ? Math.abs(change) : 0);
+            changes.push(data[i].close - data[i - 1].close);
         }
-
-        // Calculate initial average gain/loss
-        let avgGain = gains.slice(0, period).reduce((a, b) => a + b) / period;
-        let avgLoss = losses.slice(0, period).reduce((a, b) => a + b) / period;
-
-        // Calculate RSI values
-        for (let i = 0; i < data.length; i++) {
-            if (i < period) {
-                rsi.push({ time: data[i].time, value: null });
-                continue;
-            }
-
-            if (i > period) {
-                avgGain = ((avgGain * (period - 1)) + (gains[i - 1] || 0)) / period;
-                avgLoss = ((avgLoss * (period - 1)) + (losses[i - 1] || 0)) / period;
-            }
-
-            const rs = avgGain / avgLoss;
-            const rsiValue = 100 - (100 / (1 + rs));
-
-            rsi.push({
-                time: data[i].time,
-                value: rsiValue
-            });
-        }
-        return rsi;
+        
+        const gains = changes.map(change => change > 0 ? change : 0);
+        const losses = changes.map(change => change < 0 ? -change : 0);
+        
+        const avgGain = calculate.movingAverage(gains, period);
+        const avgLoss = calculate.movingAverage(losses, period);
+        
+        const rsi = avgGain.map((gain, index) => {
+            const loss = avgLoss[index];
+            if (loss === 0) return 100;
+            const rs = gain / loss;
+            return 100 - (100 / (1 + rs));
+        });
+        
+        return data.slice(period).map((candle, index) => ({
+            time: candle.time,
+            value: rsi[index]
+        }));
     }
 
-    // Moving Average Convergence Divergence (MACD)
     calculateMACD(data, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+        const prices = data.map(candle => candle.close);
+        
+        // Calculate fast and slow EMAs
         const fastEMA = this.calculateEMA(data, fastPeriod);
         const slowEMA = this.calculateEMA(data, slowPeriod);
-        const macdLine = [];
-        const signalLine = [];
-        const histogram = [];
-
-        // Calculate MACD line
-        for (let i = 0; i < data.length; i++) {
-            if (fastEMA[i].value === null || slowEMA[i].value === null) {
-                macdLine.push({ time: data[i].time, value: null });
-                continue;
-            }
-            macdLine.push({
-                time: data[i].time,
-                value: fastEMA[i].value - slowEMA[i].value
-            });
-        }
-
-        // Calculate Signal line (EMA of MACD line)
-        let signalSum = 0;
-        let validMacdPoints = 0;
         
-        for (let i = 0; i < data.length; i++) {
-            if (i < signalPeriod - 1 || macdLine[i].value === null) {
-                signalLine.push({ time: data[i].time, value: null });
-                histogram.push({ time: data[i].time, value: null });
-                continue;
-            }
-
-            if (validMacdPoints < signalPeriod) {
-                signalSum += macdLine[i].value;
-                validMacdPoints++;
-                if (validMacdPoints === signalPeriod) {
-                    const signalValue = signalSum / signalPeriod;
-                    signalLine.push({ time: data[i].time, value: signalValue });
-                    histogram.push({
-                        time: data[i].time,
-                        value: macdLine[i].value - signalValue
-                    });
-                } else {
-                    signalLine.push({ time: data[i].time, value: null });
-                    histogram.push({ time: data[i].time, value: null });
-                }
-                continue;
-            }
-
-            const prevSignal = signalLine[i - 1].value;
-            const multiplier = 2 / (signalPeriod + 1);
-            const signalValue = (macdLine[i].value - prevSignal) * multiplier + prevSignal;
-            
-            signalLine.push({ time: data[i].time, value: signalValue });
-            histogram.push({
-                time: data[i].time,
-                value: macdLine[i].value - signalValue
-            });
-        }
-
-        return {
-            macdLine,
-            signalLine,
-            histogram
-        };
+        // Calculate MACD line
+        const macdLine = fastEMA.map((fast, index) => ({
+            time: fast.time,
+            value: fast.value - slowEMA[index].value
+        }));
+        
+        // Calculate signal line (EMA of MACD line)
+        const signalLine = calculate.movingAverage(
+            macdLine.map(item => item.value),
+            signalPeriod
+        );
+        
+        // Calculate histogram
+        return macdLine.slice(signalPeriod - 1).map((macd, index) => ({
+            time: macd.time,
+            macd: macd.value,
+            signal: signalLine[index],
+            histogram: macd.value - signalLine[index]
+        }));
     }
 
-    // Bollinger Bands
     calculateBollingerBands(data, period = 20, stdDev = 2) {
-        const bands = [];
-        for (let i = 0; i < data.length; i++) {
-            if (i < period - 1) {
-                bands.push({
-                    time: data[i].time,
-                    upper: null,
-                    middle: null,
-                    lower: null
-                });
-                continue;
-            }
-
-            const slice = data.slice(i - period + 1, i + 1);
-            const sma = slice.reduce((sum, val) => sum + val.close, 0) / period;
-            
-            const squaredDiffs = slice.map(val => Math.pow(val.close - sma, 2));
-            const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / period;
-            const standardDeviation = Math.sqrt(variance);
-
-            bands.push({
-                time: data[i].time,
-                upper: sma + (standardDeviation * stdDev),
-                middle: sma,
-                lower: sma - (standardDeviation * stdDev)
-            });
-        }
+        const prices = data.map(candle => candle.close);
+        const sma = calculate.movingAverage(prices, period);
+        
+        const bands = sma.map((middle, index) => {
+            const slice = prices.slice(index, index + period);
+            const std = calculate.standardDeviation(slice);
+            return {
+                time: data[index + period - 1].time,
+                middle,
+                upper: middle + (stdDev * std),
+                lower: middle - (stdDev * std)
+            };
+        });
+        
         return bands;
     }
 
-    // Add indicator to the collection
-    addIndicator(name, data) {
-        this.indicators.set(name, data);
+    addIndicator(type, options = {}) {
+        this.indicators.set(type, options);
     }
 
-    // Get indicator data
-    getIndicator(name) {
-        return this.indicators.get(name);
+    removeIndicator(type) {
+        this.indicators.delete(type);
     }
 
-    // Remove indicator
-    removeIndicator(name) {
-        this.indicators.delete(name);
+    getIndicator(type) {
+        return this.indicators.get(type);
     }
 }
 

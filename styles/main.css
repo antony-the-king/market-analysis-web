@@ -1,29 +1,14 @@
 :root {
-    /* Colors */
-    --primary-bg: #1a1a1a;
-    --secondary-bg: #242424;
-    --panel-bg: #2a2a2a;
-    --border-color: #363636;
-    --text-primary: #ffffff;
-    --text-secondary: #a0a0a0;
-    --accent-color: #2962ff;
-    --success-color: #4caf50;
-    --warning-color: #ff9800;
-    --danger-color: #f44336;
-    
-    /* Spacing */
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    
-    /* Sizes */
-    --sidebar-width: 250px;
-    --nav-height: 60px;
-    --border-radius: 4px;
+    --bg-primary: #1a1c24;
+    --bg-secondary: #2a2e39;
+    --text-primary: #d1d4dc;
+    --text-secondary: #787b86;
+    --accent-blue: #2196f3;
+    --accent-green: #26a69a;
+    --accent-red: #ef5350;
+    --border-color: #363c4e;
 }
 
-/* Reset & Base Styles */
 * {
     margin: 0;
     padding: 0;
@@ -32,12 +17,11 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background-color: var(--primary-bg);
+    background-color: var(--bg-primary);
     color: var(--text-primary);
-    line-height: 1.6;
+    line-height: 1.5;
 }
 
-/* Layout */
 .app-container {
     display: flex;
     flex-direction: column;
@@ -46,293 +30,195 @@ body {
 
 /* Top Navigation */
 .top-nav {
-    height: var(--nav-height);
-    background-color: var(--secondary-bg);
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    padding: 0 var(--spacing-md);
-    justify-content: space-between;
+    gap: 20px;
 }
 
-.nav-left, .nav-center, .nav-right {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-}
-
-/* Symbol Select */
 .symbol-select {
-    background-color: var(--panel-bg);
+    background-color: var(--bg-primary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--border-radius);
-    outline: none;
-}
-
-/* Timeframe Controls */
-.timeframe-controls {
-    display: flex;
-    gap: 2px;
-    background-color: var(--panel-bg);
-    padding: 2px;
-    border-radius: var(--border-radius);
-}
-
-.timeframe-controls button {
-    background: transparent;
-    color: var(--text-secondary);
-    border: none;
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 5px 10px;
+    border-radius: 4px;
     cursor: pointer;
-    border-radius: var(--border-radius);
 }
 
-.timeframe-controls button.active {
-    background-color: var(--accent-color);
+.timeframe-buttons {
+    display: flex;
+    gap: 5px;
+}
+
+.timeframe-buttons button {
+    background-color: var(--bg-primary);
     color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 5px 15px;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
-/* Main Content Area */
+.timeframe-buttons button.active {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.right-controls {
+    margin-left: auto;
+    display: flex;
+    gap: 10px;
+}
+
+/* Main Content */
 .main-content {
     display: flex;
     flex: 1;
     overflow: hidden;
 }
 
-/* Sidebars */
-.left-sidebar, .right-sidebar {
-    width: var(--sidebar-width);
-    background-color: var(--secondary-bg);
+/* Left Sidebar */
+.left-sidebar {
+    width: 200px;
+    background-color: var(--bg-secondary);
     border-right: 1px solid var(--border-color);
-    overflow-y: auto;
+    padding: 15px;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
-    padding: var(--spacing-md);
+    gap: 20px;
 }
 
-.right-sidebar {
-    border-right: none;
-    border-left: 1px solid var(--border-color);
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-/* Tool Sections */
-.tool-section {
-    background-color: var(--panel-bg);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-md);
-}
-
-.tool-section h3 {
-    margin-bottom: var(--spacing-md);
+.section h3 {
     color: var(--text-secondary);
     font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    margin-bottom: 5px;
 }
 
-.tool-buttons {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-sm);
-}
-
-.tool-btn {
-    background-color: var(--secondary-bg);
+.analysis-btn, .drawing-btn {
+    background-color: var(--bg-primary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    padding: var(--spacing-sm);
-    border-radius: var(--border-radius);
+    padding: 8px;
+    border-radius: 4px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    text-align: left;
 }
 
-.tool-btn:hover {
-    background-color: var(--accent-color);
+.pattern-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pattern-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
 }
 
 /* Chart Area */
 .chart-area {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--primary-bg);
+    position: relative;
+    background-color: var(--bg-primary);
+}
+
+#chartContainer {
+    width: 100%;
+    height: calc(100% - 30px);
 }
 
 .chart-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 5px;
+    z-index: 100;
+}
+
+.chart-controls button {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.chart-info {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    gap: 20px;
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Right Sidebar */
+.right-sidebar {
+    width: 250px;
+    background-color: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.analysis-item {
     display: flex;
     justify-content: space-between;
-    padding: var(--spacing-sm) var(--spacing-md);
-    background-color: var(--secondary-bg);
+    padding: 8px 0;
     border-bottom: 1px solid var(--border-color);
 }
 
-.control-left, .control-right {
-    display: flex;
-    gap: var(--spacing-sm);
-}
-
-.chart-container {
-    flex: 1;
-    position: relative;
-}
-
-/* Chart Info Bar */
-.chart-info-bar {
-    padding: var(--spacing-sm) var(--spacing-md);
-    background-color: var(--secondary-bg);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-}
-
-/* Panels */
-.panel {
-    background-color: var(--panel-bg);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-md);
-}
-
-.panel h3 {
-    margin-bottom: var(--spacing-md);
-    color: var(--text-secondary);
-}
-
-/* Market Stats */
-.market-stats {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-}
-
-.stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.stat-label {
-    color: var(--text-secondary);
-}
-
-/* Pattern List */
-.pattern-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-}
-
-/* Alerts */
-.alerts-list {
-    margin-bottom: var(--spacing-md);
-}
-
-.create-alert-btn {
-    width: 100%;
-    padding: var(--spacing-sm);
-    background-color: var(--accent-color);
+#createAlertBtn, #enableLearningBtn {
+    background-color: var(--accent-blue);
     color: var(--text-primary);
     border: none;
-    border-radius: var(--border-radius);
+    padding: 8px;
+    border-radius: 4px;
     cursor: pointer;
+    width: 100%;
 }
 
-/* Modals */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    align-items: center;
-    justify-content: center;
+/* Hover States */
+button:hover:not(.active) {
+    background-color: var(--accent-blue) !important;
 }
 
-.modal-content {
-    background-color: var(--secondary-bg);
-    padding: var(--spacing-lg);
-    border-radius: var(--border-radius);
-    min-width: 400px;
+/* Focus States */
+button:focus, select:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-blue);
 }
 
-.modal-actions {
-    margin-top: var(--spacing-lg);
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-sm);
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
 }
 
-/* Buttons */
-.nav-btn, .modal-actions button {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--border-color);
-    background-color: var(--panel-bg);
-    color: var(--text-primary);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: all 0.2s ease;
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
 }
 
-.nav-btn:hover, .modal-actions button:hover {
-    background-color: var(--accent-color);
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
 }
 
-/* Overlays */
-.chart-overlays {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-}
-
-.overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .left-sidebar {
-        width: 200px;
-    }
-    
-    .right-sidebar {
-        width: 200px;
-    }
-}
-
-@media (max-width: 992px) {
-    .main-content {
-        flex-direction: column;
-    }
-    
-    .left-sidebar, .right-sidebar {
-        width: 100%;
-        height: 200px;
-    }
-}
-
-@media (max-width: 768px) {
-    .nav-center {
-        display: none;
-    }
-    
-    .timeframe-controls {
-        position: absolute;
-        top: var(--nav-height);
-        left: 0;
-        right: 0;
-        background-color: var(--secondary-bg);
-        padding: var(--spacing-sm);
-        z-index: 100;
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-blue);
 }

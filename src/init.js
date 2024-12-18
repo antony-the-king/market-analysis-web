@@ -1,3 +1,4 @@
+import config from './config.js';
 import marketWebSocket from './services/websocket.js';
 import marketDataService from './services/marketData.js';
 import technicalIndicators from './components/Indicators/technical.js';
@@ -5,11 +6,8 @@ import patternDetection from './components/Strategies/patterns.js';
 import strategyImplementations from './components/Strategies/implementations.js';
 import alertService from './services/alerts.js';
 import settingsManager from './services/settings.js';
-import educationService from './services/education.js';
 import themeManager from './services/theme.js';
-import shortcutManager from './services/shortcuts.js';
-import drawingTools from './services/drawing.js';
-import { MarketAnalysisError } from './utils/helpers.js';
+import tooltipManager from './components/Learning/tooltips.js';
 
 class MarketAnalysisInitializer {
     constructor() {
@@ -30,9 +28,6 @@ class MarketAnalysisInitializer {
             // Load user preferences
             await this.loadUserPreferences();
 
-            // Initialize UI
-            this.initializeUI();
-
             this.initialized = true;
             console.log('Market Analysis Tool initialized successfully');
 
@@ -45,38 +40,39 @@ class MarketAnalysisInitializer {
     }
 
     async initializeServices() {
-        // Initialize settings first
-        await this.initializeService('settings', settingsManager);
+        try {
+            // Initialize settings first
+            await this.initializeService('settings', settingsManager);
 
-        // Initialize theme
-        await this.initializeService('theme', themeManager);
+            // Initialize theme
+            await this.initializeService('theme', themeManager);
 
-        // Initialize WebSocket connection
-        await this.initializeService('websocket', marketWebSocket);
+            // Initialize WebSocket connection
+            await this.initializeService('websocket', marketWebSocket);
 
-        // Initialize market data service
-        await this.initializeService('marketData', marketDataService);
+            // Initialize market data service
+            await this.initializeService('marketData', marketDataService);
 
-        // Initialize technical analysis
-        await this.initializeService('technical', technicalIndicators);
+            // Initialize technical analysis
+            await this.initializeService('technical', technicalIndicators);
 
-        // Initialize pattern detection
-        await this.initializeService('patterns', patternDetection);
+            // Initialize pattern detection
+            await this.initializeService('patterns', patternDetection);
 
-        // Initialize strategy implementations
-        await this.initializeService('strategies', strategyImplementations);
+            // Initialize strategy implementations
+            await this.initializeService('strategies', strategyImplementations);
 
-        // Initialize alerts
-        await this.initializeService('alerts', alertService);
+            // Initialize alerts
+            await this.initializeService('alerts', alertService);
 
-        // Initialize education service
-        await this.initializeService('education', educationService);
+            // Initialize tooltips
+            await this.initializeService('tooltips', tooltipManager);
 
-        // Initialize shortcuts
-        await this.initializeService('shortcuts', shortcutManager);
-
-        // Initialize drawing tools
-        await this.initializeService('drawing', drawingTools);
+            console.log('All services initialized successfully');
+        } catch (error) {
+            console.error('Service initialization failed:', error);
+            throw error;
+        }
     }
 
     async initializeService(name, service) {
@@ -90,11 +86,8 @@ class MarketAnalysisInitializer {
             this.services.set(name, service);
             console.log(`${name} service initialized`);
         } catch (error) {
-            throw new MarketAnalysisError(
-                `Failed to initialize ${name} service`,
-                'SERVICE_INIT_FAILED',
-                { service: name, error }
-            );
+            console.error(`Failed to initialize ${name} service:`, error);
+            throw error;
         }
     }
 
@@ -109,8 +102,7 @@ class MarketAnalysisInitializer {
         marketWebSocket.addListener('reconnect', () => this.handleWebSocketReconnect());
 
         // Market data events
-        marketDataService.addListener('update', (data) => this.handleMarketUpdate(data));
-        marketDataService.addListener('error', (error) => this.handleMarketDataError(error));
+        marketDataService.addListener((data) => this.handleMarketUpdate(data));
 
         // Pattern detection events
         patternDetection.subscribe((pattern) => this.handlePatternDetected(pattern));
@@ -125,66 +117,25 @@ class MarketAnalysisInitializer {
             const theme = settingsManager.get('theme', 'dark');
             await themeManager.setTheme(theme);
 
-            // Load shortcuts
-            await shortcutManager.loadCustomShortcuts();
-
-            // Load saved layouts
+            // Load saved layouts and settings
             const savedLayout = settingsManager.get('chartLayout');
             if (savedLayout) {
                 // Apply saved layout
+                console.log('Applying saved layout');
             }
         } catch (error) {
             console.warn('Error loading user preferences:', error);
         }
     }
 
-    initializeUI() {
-        // Initialize chart container
-        const chartContainer = document.getElementById('chartContainer');
-        if (chartContainer) {
-            // Initialize chart
-        }
-
-        // Initialize toolbar
-        const toolbar = document.querySelector('.toolbar');
-        if (toolbar) {
-            // Initialize toolbar buttons
-        }
-
-        // Initialize sidebar
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            // Initialize sidebar panels
-        }
-    }
-
     handleInitializationError(error) {
-        // Log error
         console.error('Initialization error:', error);
-
+        
         // Show error message to user
-        this.showErrorMessage(
-            'Failed to initialize application',
-            error.message
-        );
-
-        // Try to gracefully degrade functionality
-        this.handleGracefulDegradation(error);
-    }
-
-    showErrorMessage(title, message) {
-        // Implementation depends on UI framework/library
-        console.error(title, message);
-    }
-
-    handleGracefulDegradation(error) {
-        // Disable features that depend on failed services
-        this.services.forEach((service, name) => {
-            if (service.hasError) {
-                console.warn(`Disabling ${name} due to initialization error`);
-                // Disable related UI elements
-            }
-        });
+        const errorContainer = document.createElement('div');
+        errorContainer.className = 'error-message';
+        errorContainer.textContent = 'Failed to initialize application. Please refresh the page.';
+        document.body.appendChild(errorContainer);
     }
 
     // Event handlers
@@ -195,24 +146,21 @@ class MarketAnalysisInitializer {
 
     handleOffline() {
         console.log('Application is offline');
-        // Show offline indicator
     }
 
     handleBeforeUnload(event) {
         // Save any unsaved changes
         if (settingsManager.get('autoSave')) {
-            // Save current state
+            settingsManager.saveSettings();
         }
     }
 
     handleWebSocketError(error) {
         console.error('WebSocket error:', error);
-        // Show connection error indicator
     }
 
     handleWebSocketReconnect() {
         console.log('WebSocket reconnected');
-        // Hide connection error indicator
     }
 
     handleMarketUpdate(data) {
@@ -221,20 +169,12 @@ class MarketAnalysisInitializer {
         alertService.checkAlertConditions(data);
     }
 
-    handleMarketDataError(error) {
-        console.error('Market data error:', error);
-        // Show error message
-    }
-
     handlePatternDetected(pattern) {
         console.log('Pattern detected:', pattern);
-        // Show pattern indicator
-        // Trigger alerts if configured
     }
 
     handleAlert(alert) {
         console.log('Alert triggered:', alert);
-        // Show alert notification
     }
 
     // Cleanup
@@ -246,10 +186,6 @@ class MarketAnalysisInitializer {
             // Save user preferences
             await settingsManager.saveSettings();
 
-            // Clear any intervals/timeouts
-            // Remove event listeners
-            // Release resources
-
             console.log('Cleanup completed successfully');
         } catch (error) {
             console.error('Cleanup error:', error);
@@ -259,11 +195,12 @@ class MarketAnalysisInitializer {
 
 // Create and export singleton instance
 const marketAnalysisInitializer = new MarketAnalysisInitializer();
-export default marketAnalysisInitializer;
 
-// Auto-initialize when script is loaded
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     marketAnalysisInitializer.initialize().catch(error => {
         console.error('Failed to initialize application:', error);
     });
 });
+
+export default marketAnalysisInitializer;
